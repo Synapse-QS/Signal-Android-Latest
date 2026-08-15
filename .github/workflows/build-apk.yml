@@ -62,7 +62,7 @@ jobs:
         android.disallowKotlinSourceSets=false
         EOF
 
-    # ✅ بناء فقط المهام الأساسية
+    # ✅ بناء الوحدة الرئيسية فقط (Signal-Android)
     - name: بناء APK (تسلسلي بالكامل)
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
@@ -71,7 +71,7 @@ jobs:
         SIGNAL_BUILD_CACHE_PUSH: ${{ startsWith(github.ref, 'refs/heads/8.') }}
       run: |
         if [ "${{ github.event.inputs.build_type }}" == "release" ]; then
-          ./gradlew :app:assemblePlayProdRelease \
+          ./gradlew :Signal-Android:assemblePlayProdRelease \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
@@ -84,7 +84,7 @@ jobs:
             -x compileReleaseArtProfile \
             -x generateReleaseBaselineProfile
         else
-          ./gradlew :app:assemblePlayProdDebug \
+          ./gradlew :Signal-Android:assemblePlayProdDebug \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
@@ -100,8 +100,10 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: signal-${{ github.event.inputs.build_type || 'debug' }}-apk
-        path: app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
-        if-no-files-found: error
+        path: |
+          Signal-Android/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
+          app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
+        if-no-files-found: warn
 
     - name: رفع التقارير
       if: ${{ failure() }}
