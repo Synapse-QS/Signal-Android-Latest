@@ -40,7 +40,7 @@ jobs:
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
-    # ✅ إضافة مساحة تبادل كبيرة (8 جيجابايت)
+    # ✅ إضافة مساحة تبادل كبيرة (8 جيجابايت) لتوفير ذاكرة كافية
     - name: إعداد مساحة تبادل كبيرة
       run: |
         sudo swapoff -a || true
@@ -58,8 +58,8 @@ jobs:
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
 
-    # ✅ إعداد الذاكرة مع تحديد متغيرات إضافية لتقليل الاستهلاك
-    - name: إعداد الذاكرة والمتغيرات
+    # ✅ إعداد الذاكرة الأمثل
+    - name: إعداد الذاكرة
       run: |
         cat > gradle.properties << 'EOF'
         org.gradle.jvmargs=-Xmx3g -Xms256m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC
@@ -72,12 +72,12 @@ jobs:
         android.experimental.enableScreenshotTest=true
         android.experimental.enableTestFixturesKotlinSupport=true
         android.disallowKotlinSourceSets=false
-        # تعطيل ميزات تستهلك ذاكرة
+        # تعطيل ميزات إضافية لتوفير الذاكرة
         android.enableJetifier=false
         android.enableUnitTestBinaryResources=false
         EOF
 
-    # ✅ بناء APK مع تجاوز جميع المهام المستهلكة للذاكرة
+    # ✅ بناء APK - لا نتجاوز مهام الموارد الوسيطة
     - name: بناء APK
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
@@ -95,14 +95,8 @@ jobs:
             --info \
             -x lint \
             -x test \
-            -x mergePlayProdReleaseResources \
-            -x processPlayProdReleaseResources \
             -x compileReleaseArtProfile \
-            -x generateReleaseArtProfile \
-            -x verifyReleaseResources \
-            -x bundleReleaseResources \
-            -x compileReleaseSources \
-            -x compileReleaseKotlin
+            -x generateReleaseArtProfile
         else
           ./gradlew :Signal-Android:assemblePlayProdDebug \
             --no-daemon \
@@ -112,29 +106,9 @@ jobs:
             --info \
             -x lint \
             -x test \
-            -x mergePlayProdDebugResources \
-            -x processPlayProdDebugResources \
             -x compileDebugArtProfile \
-            -x generateDebugArtProfile \
-            -x verifyDebugResources \
-            -x bundleDebugResources \
-            -x compileDebugSources \
-            -x compileDebugKotlin
+            -x generateDebugArtProfile
         fi
-
-    # ✅ رفع التقارير والتسجيلات لتحليل الفشل
-    - name: رفع التقارير والتسجيلات
-      if: ${{ always() }}
-      uses: actions/upload-artifact@v7
-      with:
-        name: build-logs
-        path: |
-          **/build/reports
-          **/build/test-results
-          **/.gradle/configuration-cache
-          **/build/outputs/logs
-          build.log
-        if-no-files-found: ignore
 
     - name: رفع APK
       uses: actions/upload-artifact@v7
@@ -144,3 +118,14 @@ jobs:
           Signal-Android/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
           app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
         if-no-files-found: warn
+
+    - name: رفع التقارير
+      if: ${{ failure() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: reports
+        path: |
+          **/build/reports
+          **/build/test-results
+          **/build/outputs/logs
+        if-no-files-found: ignore
