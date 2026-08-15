@@ -40,7 +40,7 @@ jobs:
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
-    - name: إعداد Gradle
+    - name: إعداد Gradle مع كاش أساسي
       uses: gradle/actions/setup-gradle@v6
       with:
         cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/8.') }}
@@ -62,7 +62,7 @@ jobs:
         android.disallowKotlinSourceSets=false
         EOF
 
-    # ✅ بناء الوحدة الرئيسية فقط (Signal-Android)
+    # ✅ بناء الوحدة الرئيسية مع تجاهل المهام غير الضرورية فقط
     - name: بناء APK (تسلسلي بالكامل)
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
@@ -78,11 +78,7 @@ jobs:
             --build-cache \
             -Dkotlin.daemon.jvmargs="-Xmx1g" \
             -x lint \
-            -x test \
-            -x lintVital \
-            -x verifyReleaseResources \
-            -x compileReleaseArtProfile \
-            -x generateReleaseBaselineProfile
+            -x test
         else
           ./gradlew :Signal-Android:assemblePlayProdDebug \
             --no-daemon \
@@ -91,9 +87,7 @@ jobs:
             --build-cache \
             -Dkotlin.daemon.jvmargs="-Xmx1g" \
             -x lint \
-            -x test \
-            -x compileDebugArtProfile \
-            -x generateDebugBaselineProfile
+            -x test
         fi
 
     - name: رفع APK
@@ -105,7 +99,7 @@ jobs:
           app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
         if-no-files-found: warn
 
-    - name: رفع التقارير
+    - name: رفع التقارير في حالة الفشل
       if: ${{ failure() }}
       uses: actions/upload-artifact@v7
       with:
