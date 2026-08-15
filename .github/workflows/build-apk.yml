@@ -40,7 +40,7 @@ jobs:
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
-    # ✅ إضافة مساحة تبادل كبيرة (8 جيجابايت) لتوفير ذاكرة كافية
+    # ✅ إضافة مساحة تبادل كبيرة (8 جيجابايت) لتوفير ذاكرة افتراضية
     - name: إعداد مساحة تبادل كبيرة
       run: |
         sudo swapoff -a || true
@@ -58,56 +58,57 @@ jobs:
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
 
-    # ✅ إعداد الذاكرة الأمثل
-    - name: إعداد الذاكرة
+    # ✅ إعداد ذاكرة منخفضة جداً ومنع الـ Daemon نهائياً
+    - name: إعداد الذاكرة ومنع الـ Daemon
       run: |
         cat > gradle.properties << 'EOF'
-        org.gradle.jvmargs=-Xmx3g -Xms256m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC
-        kotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=256m
-        org.gradle.parallel=false
-        org.gradle.caching=true
+        # ذاكرة منخفضة جداً مع مساحة تبادل
+        org.gradle.jvmargs=-Xmx1g -Xms64m -XX:MaxMetaspaceSize=128m -XX:+UseG1GC
+        kotlin.daemon.jvmargs=-Xmx512m -XX:MaxMetaspaceSize=64m
+        # تعطيل الـ Daemon نهائياً
         org.gradle.daemon=false
+        # تعطيل كل شيء يستهلك ذاكرة
+        org.gradle.parallel=false
         org.gradle.workers.max=1
+        org.gradle.caching=false
         android.useAndroidX=true
+        android.enableJetifier=false
+        android.enableUnitTestBinaryResources=false
         android.experimental.enableScreenshotTest=true
         android.experimental.enableTestFixturesKotlinSupport=true
         android.disallowKotlinSourceSets=false
-        # تعطيل ميزات إضافية لتوفير الذاكرة
-        android.enableJetifier=false
-        android.enableUnitTestBinaryResources=false
         EOF
 
-    # ✅ بناء APK - لا نتجاوز مهام الموارد الوسيطة
+    # ✅ بناء APK مع منع الـ Daemon ومنع الكاش
     - name: بناء APK
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
         SIGNAL_BUILD_CACHE_USER: ${{ secrets.SIGNAL_BUILD_CACHE_USER }}
         SIGNAL_BUILD_CACHE_PASSWORD: ${{ secrets.SIGNAL_BUILD_CACHE_PASSWORD }}
         SIGNAL_BUILD_CACHE_PUSH: ${{ startsWith(github.ref, 'refs/heads/8.') }}
-        GRADLE_OPTS: "-Xmx3g -XX:MaxMetaspaceSize=512m"
       run: |
         if [ "${{ github.event.inputs.build_type }}" == "release" ]; then
           ./gradlew :Signal-Android:assemblePlayProdRelease \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
+            --no-build-cache \
             --stacktrace \
-            --info \
+            -Dkotlin.daemon.jvmargs="-Xmx512m" \
+            -Dorg.gradle.jvmargs="-Xmx1g" \
             -x lint \
-            -x test \
-            -x compileReleaseArtProfile \
-            -x generateReleaseArtProfile
+            -x test
         else
           ./gradlew :Signal-Android:assemblePlayProdDebug \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
+            --no-build-cache \
             --stacktrace \
-            --info \
+            -Dkotlin.daemon.jvmargs="-Xmx512m" \
+            -Dorg.gradle.jvmargs="-Xmx1g" \
             -x lint \
-            -x test \
-            -x compileDebugArtProfile \
-            -x generateDebugArtProfile
+            -x test
         fi
 
     - name: رفع APK
