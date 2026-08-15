@@ -1,4 +1,4 @@
-name: Build Signal APK (Ultimate)
+name: Build Signal APK (Final)
 
 on:
   workflow_dispatch:
@@ -47,23 +47,24 @@ jobs:
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
 
-    # ✅ إنشاء ملف gradle.properties مؤقت بإعدادات ذاكرة منخفضة جداً
-    - name: إعداد ذاكرة منخفضة
+    # ✅ إنشاء ملف gradle.properties بأقل إعدادات ذاكرة ممكنة
+    - name: إعداد ذاكرة منخفضة جداً
       run: |
         cat > gradle.properties << 'EOF'
-        org.gradle.jvmargs=-Xmx2g -Xms128m -XX:MaxMetaspaceSize=256m
-        kotlin.daemon.jvmargs=-Xmx1g -XX:MaxMetaspaceSize=128m
+        org.gradle.jvmargs=-Xmx1g -Xms64m -XX:MaxMetaspaceSize=128m
+        kotlin.daemon.jvmargs=-Xmx512m -XX:MaxMetaspaceSize=64m
         org.gradle.parallel=false
         org.gradle.caching=true
         org.gradle.daemon=false
+        org.gradle.workers.max=1
         android.useAndroidX=true
         android.experimental.enableScreenshotTest=true
         android.experimental.enableTestFixturesKotlinSupport=true
         android.disallowKotlinSourceSets=false
         EOF
 
-    # ✅ بناء الوحدة الرئيسية مع تجاهل المهام غير الضرورية فقط
-    - name: بناء APK (تسلسلي بالكامل)
+    # ✅ بناء APK مع تعطيل كل شيء يستهلك ذاكرة
+    - name: بناء APK (بحد أدنى من الذاكرة)
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
         SIGNAL_BUILD_CACHE_USER: ${{ secrets.SIGNAL_BUILD_CACHE_USER }}
@@ -75,19 +76,27 @@ jobs:
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            --build-cache \
-            -Dkotlin.daemon.jvmargs="-Xmx1g" \
+            --no-build-cache \
+            -Dkotlin.daemon.jvmargs="-Xmx512m" \
+            -Dorg.gradle.jvmargs="-Xmx1g" \
             -x lint \
-            -x test
+            -x test \
+            -x compileReleaseSources \
+            -x compileReleaseKotlin \
+            --info
         else
           ./gradlew :Signal-Android:assemblePlayProdDebug \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            --build-cache \
-            -Dkotlin.daemon.jvmargs="-Xmx1g" \
+            --no-build-cache \
+            -Dkotlin.daemon.jvmargs="-Xmx512m" \
+            -Dorg.gradle.jvmargs="-Xmx1g" \
             -x lint \
-            -x test
+            -x test \
+            -x compileDebugSources \
+            -x compileDebugKotlin \
+            --info
         fi
 
     - name: رفع APK
@@ -99,7 +108,7 @@ jobs:
           app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
         if-no-files-found: warn
 
-    - name: رفع التقارير في حالة الفشل
+    - name: رفع التقارير
       if: ${{ failure() }}
       uses: actions/upload-artifact@v7
       with:
