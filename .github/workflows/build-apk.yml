@@ -1,4 +1,4 @@
-name: Build Signal APK (Final)
+name: Build Signal APK (Stable)
 
 on:
   workflow_dispatch:
@@ -40,6 +40,17 @@ jobs:
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
+    # ✅ إضافة مساحة تبادل كبيرة (8 جيجابايت) لتجاوز مشاكل الذاكرة
+    - name: إعداد مساحة تبادل كبيرة
+      run: |
+        sudo swapoff -a || true
+        sudo dd if=/dev/zero of=/swapfile bs=1M count=8192 status=progress
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        echo "✅ تم إضافة 8 جيجابايت مساحة تبادل"
+        free -h
+
     - name: إعداد Gradle مع كاش أساسي
       uses: gradle/actions/setup-gradle@v6
       with:
@@ -47,25 +58,12 @@ jobs:
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
 
-    # ✅ إضافة مساحة تبادل بطريقة آمنة (تجنب خطأ "Text file busy")
-    - name: إضافة مساحة تبادل (swap)
+    # ✅ إعداد ذاكرة معقولة مع استخدام مساحة التبادل
+    - name: إعداد الذاكرة
       run: |
-        # التحقق من وجود swap مسبقاً وإيقافه
-        sudo swapoff -a || true
-        # إنشاء ملف swap جديد
-        sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 status=progress
-        sudo chmod 600 /swapfile
-        sudo mkswap /swapfile
-        sudo swapon /swapfile
-        echo "تم إضافة مساحة تبادل:"
-        free -h
-
-    # ✅ إعداد ذاكرة منخفضة مع متغيرات إضافية
-    - name: إعداد ذاكرة منخفضة
-      run: |
-        cat >> gradle.properties << 'EOF'
-        org.gradle.jvmargs=-Xmx2g -Xms128m -XX:MaxMetaspaceSize=256m
-        kotlin.daemon.jvmargs=-Xmx1g -XX:MaxMetaspaceSize=128m
+        cat > gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx3g -Xms256m -XX:MaxMetaspaceSize=512m
+        kotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=256m
         org.gradle.parallel=false
         org.gradle.caching=true
         org.gradle.daemon=false
@@ -76,7 +74,7 @@ jobs:
         android.disallowKotlinSourceSets=false
         EOF
 
-    # ✅ بناء APK مع تجاوز مهام الموارد
+    # ✅ بناء APK مع تجاوز المهام المستهلكة للذاكرة
     - name: بناء APK
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
@@ -89,25 +87,23 @@ jobs:
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            -Dkotlin.daemon.jvmargs="-Xmx1g" \
-            -Dorg.gradle.jvmargs="-Xmx2g" \
+            --stacktrace \
             -x lint \
             -x test \
             -x mergePlayProdReleaseResources \
             -x processPlayProdReleaseResources \
-            --info
+            -x compileReleaseArtProfile
         else
           ./gradlew :Signal-Android:assemblePlayProdDebug \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            -Dkotlin.daemon.jvmargs="-Xmx1g" \
-            -Dorg.gradle.jvmargs="-Xmx2g" \
+            --stacktrace \
             -x lint \
             -x test \
             -x mergePlayProdDebugResources \
             -x processPlayProdDebugResources \
-            --info
+            -x compileDebugArtProfile
         fi
 
     - name: رفع APK
@@ -119,7 +115,7 @@ jobs:
           app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
         if-no-files-found: warn
 
-    - name: رفع التقارير
+    - name: رفع التقارير في حالة الفشل
       if: ${{ failure() }}
       uses: actions/upload-artifact@v7
       with:
