@@ -1,4 +1,4 @@
-name: Build Signal APK (Stable)
+name: Build Signal APK (Staged)
 
 on:
   workflow_dispatch:
@@ -40,15 +40,15 @@ jobs:
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
-    # ✅ إضافة مساحة تبادل كبيرة (8 جيجابايت) لتوفير ذاكرة افتراضية
+    # ✅ إضافة مساحة تبادل 10 جيجابايت (أكبر)
     - name: إعداد مساحة تبادل كبيرة
       run: |
         sudo swapoff -a || true
-        sudo dd if=/dev/zero of=/swapfile bs=1M count=8192 status=progress
+        sudo dd if=/dev/zero of=/swapfile bs=1M count=10240 status=progress
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
         sudo swapon /swapfile
-        echo "✅ تم إضافة 8 جيجابايت مساحة تبادل"
+        echo "✅ تم إضافة 10 جيجابايت مساحة تبادل"
         free -h
 
     - name: إعداد Gradle مع كاش أساسي
@@ -58,28 +58,32 @@ jobs:
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
 
-    # ✅ إعداد ذاكرة منخفضة جداً ومنع الـ Daemon نهائياً
-    - name: إعداد الذاكرة ومنع الـ Daemon
+    - name: إعداد الذاكرة
       run: |
         cat > gradle.properties << 'EOF'
-        # ذاكرة منخفضة جداً مع مساحة تبادل
-        org.gradle.jvmargs=-Xmx1g -Xms64m -XX:MaxMetaspaceSize=128m -XX:+UseG1GC
-        kotlin.daemon.jvmargs=-Xmx512m -XX:MaxMetaspaceSize=64m
-        # تعطيل الـ Daemon نهائياً
+        org.gradle.jvmargs=-Xmx2g -Xms256m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC
+        kotlin.daemon.jvmargs=-Xmx1g -XX:MaxMetaspaceSize=256m
         org.gradle.daemon=false
-        # تعطيل كل شيء يستهلك ذاكرة
         org.gradle.parallel=false
         org.gradle.workers.max=1
-        org.gradle.caching=false
+        org.gradle.caching=true
         android.useAndroidX=true
         android.enableJetifier=false
-        android.enableUnitTestBinaryResources=false
         android.experimental.enableScreenshotTest=true
         android.experimental.enableTestFixturesKotlinSupport=true
         android.disallowKotlinSourceSets=false
         EOF
 
-    # ✅ بناء APK مع منع الـ Daemon ومنع الكاش
+    # ✅ المرحلة 1: بناء الموارد فقط (لتجنب انهيار MergeResources)
+    - name: بناء الموارد
+      run: |
+        ./gradlew :Signal-Android:mergePlayProdDebugResources \
+          --no-daemon \
+          --max-workers=1 \
+          --no-parallel \
+          --stacktrace
+
+    # ✅ المرحلة 2: بناء التطبيق بالكامل (بعد تجهيز الموارد)
     - name: بناء APK
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
@@ -92,10 +96,7 @@ jobs:
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            --no-build-cache \
             --stacktrace \
-            -Dkotlin.daemon.jvmargs="-Xmx512m" \
-            -Dorg.gradle.jvmargs="-Xmx1g" \
             -x lint \
             -x test
         else
@@ -103,10 +104,7 @@ jobs:
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            --no-build-cache \
             --stacktrace \
-            -Dkotlin.daemon.jvmargs="-Xmx512m" \
-            -Dorg.gradle.jvmargs="-Xmx1g" \
             -x lint \
             -x test
         fi
