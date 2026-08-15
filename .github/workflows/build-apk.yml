@@ -1,4 +1,4 @@
-name: Build Signal APK (Ultra Fast)
+name: Build Signal APK (Ultimate)
 
 on:
   workflow_dispatch:
@@ -19,57 +19,51 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
-    # ⚡ إلغاء أي بناء سابق إذا بدأ بناء جديد
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
 
     steps:
-    # ⚡ خطوة 1: سحب سريع للكود (آخر commit فقط)
-    - name: سحب الكود بسرعة
+    - name: سحب الكود
       uses: actions/checkout@v7.0.1
       with:
         submodules: true
         lfs: true
         fetch-depth: 1
 
-    # ⚡ خطوة 2: إعداد Java بسرعة
     - name: إعداد JDK 21
       uses: actions/setup-java@v5
       with:
         distribution: temurin
         java-version: 21
 
-    # ⚡ خطوة 3: التحقق من Gradle Wrapper
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
-    # ⚡ خطوة 4: إعداد Gradle مع كاش أساسي
-    - name: إعداد Gradle مع كاش أساسي
+    - name: إعداد Gradle
       uses: gradle/actions/setup-gradle@v6
       with:
         cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/8.') }}
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
-        gradle-home-cache-includes: |
-          caches
-          notifications
-          jdks
-          wrapper
 
-    # ⚡ خطوة 5: تحميل التبعيات بشكل منفصل
-    - name: تحميل التبعيات
+    # ✅ إنشاء ملف gradle.properties مؤقت بإعدادات ذاكرة منخفضة جداً
+    - name: إعداد ذاكرة منخفضة
       run: |
-        ./gradlew dependencies --no-daemon --parallel
+        cat > gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx2g -Xms128m -XX:MaxMetaspaceSize=256m
+        kotlin.daemon.jvmargs=-Xmx1g -XX:MaxMetaspaceSize=128m
+        org.gradle.parallel=false
+        org.gradle.caching=true
+        org.gradle.daemon=false
+        android.useAndroidX=true
+        android.experimental.enableScreenshotTest=true
+        android.experimental.enableTestFixturesKotlinSupport=true
+        android.disallowKotlinSourceSets=false
+        EOF
 
-    # ⚡ خطوة 6: إعداد متغيرات الذاكرة
-    - name: إعداد متغيرات الأداء
-      run: |
-        echo "GRADLE_OPTS=-Xmx4g -XX:MaxMetaspaceSize=512m -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.workers.max=2 -Dorg.gradle.daemon=false" >> $GITHUB_ENV
-        echo "JAVA_OPTS=-Xmx4g -XX:+UseG1GC -XX:+OptimizeStringConcat -XX:+UseStringDeduplication" >> $GITHUB_ENV
-
-    # ⚡ خطوة 7: بناء APK (متغير واحد فقط)
-    - name: بناء APK
+    # ✅ بناء فقط المهام الأساسية
+    - name: بناء APK (تسلسلي بالكامل)
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
         SIGNAL_BUILD_CACHE_USER: ${{ secrets.SIGNAL_BUILD_CACHE_USER }}
@@ -77,30 +71,31 @@ jobs:
         SIGNAL_BUILD_CACHE_PUSH: ${{ startsWith(github.ref, 'refs/heads/8.') }}
       run: |
         if [ "${{ github.event.inputs.build_type }}" == "release" ]; then
-          # ✅ بناء متغير PlayProdRelease فقط (منتج نهائي)
-          ./gradlew :Signal-Android:assemblePlayProdRelease \
+          ./gradlew :app:assemblePlayProdRelease \
             --no-daemon \
-            --parallel \
-            --max-workers=2 \
+            --max-workers=1 \
+            --no-parallel \
             --build-cache \
-            --configure-on-demand \
-            -Dkotlin.daemon.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=256m" \
+            -Dkotlin.daemon.jvmargs="-Xmx1g" \
             -x lint \
-            -x test
+            -x test \
+            -x lintVital \
+            -x verifyReleaseResources \
+            -x compileReleaseArtProfile \
+            -x generateReleaseBaselineProfile
         else
-          # ✅ بناء متغير PlayProdDebug فقط (للاختبار)
-          ./gradlew :Signal-Android:assemblePlayProdDebug \
+          ./gradlew :app:assemblePlayProdDebug \
             --no-daemon \
-            --parallel \
-            --max-workers=2 \
+            --max-workers=1 \
+            --no-parallel \
             --build-cache \
-            --configure-on-demand \
-            -Dkotlin.daemon.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=256m" \
+            -Dkotlin.daemon.jvmargs="-Xmx1g" \
             -x lint \
-            -x test
+            -x test \
+            -x compileDebugArtProfile \
+            -x generateDebugBaselineProfile
         fi
 
-    # ⚡ خطوة 8: رفع APK
     - name: رفع APK
       uses: actions/upload-artifact@v7
       with:
@@ -108,8 +103,7 @@ jobs:
         path: app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
         if-no-files-found: error
 
-    # ⚡ خطوة 9: رفع التقارير في حالة الفشل
-    - name: رفع التقارير في حالة الفشل
+    - name: رفع التقارير
       if: ${{ failure() }}
       uses: actions/upload-artifact@v7
       with:
