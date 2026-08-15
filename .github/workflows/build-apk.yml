@@ -1,4 +1,4 @@
-name: Build Signal APK (Staged)
+name: Build Signal APK (Ultimate)
 
 on:
   workflow_dispatch:
@@ -40,15 +40,15 @@ jobs:
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
-    # ✅ إضافة مساحة تبادل 10 جيجابايت (أكبر)
+    # ✅ إضافة مساحة تبادل 12 جيجابايت (للتأكد)
     - name: إعداد مساحة تبادل كبيرة
       run: |
         sudo swapoff -a || true
-        sudo dd if=/dev/zero of=/swapfile bs=1M count=10240 status=progress
+        sudo dd if=/dev/zero of=/swapfile bs=1M count=12288 status=progress
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
         sudo swapon /swapfile
-        echo "✅ تم إضافة 10 جيجابايت مساحة تبادل"
+        echo "✅ تم إضافة 12 جيجابايت مساحة تبادل"
         free -h
 
     - name: إعداد Gradle مع كاش أساسي
@@ -58,33 +58,8 @@ jobs:
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
 
-    - name: إعداد الذاكرة
-      run: |
-        cat > gradle.properties << 'EOF'
-        org.gradle.jvmargs=-Xmx2g -Xms256m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC
-        kotlin.daemon.jvmargs=-Xmx1g -XX:MaxMetaspaceSize=256m
-        org.gradle.daemon=false
-        org.gradle.parallel=false
-        org.gradle.workers.max=1
-        org.gradle.caching=true
-        android.useAndroidX=true
-        android.enableJetifier=false
-        android.experimental.enableScreenshotTest=true
-        android.experimental.enableTestFixturesKotlinSupport=true
-        android.disallowKotlinSourceSets=false
-        EOF
-
-    # ✅ المرحلة 1: بناء الموارد فقط (لتجنب انهيار MergeResources)
-    - name: بناء الموارد
-      run: |
-        ./gradlew :Signal-Android:mergePlayProdDebugResources \
-          --no-daemon \
-          --max-workers=1 \
-          --no-parallel \
-          --stacktrace
-
-    # ✅ المرحلة 2: بناء التطبيق بالكامل (بعد تجهيز الموارد)
-    - name: بناء APK
+    # ✅ بناء APK مباشرة بدون تجزئة أو تعقيدات
+    - name: بناء APK مباشرة
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
         SIGNAL_BUILD_CACHE_USER: ${{ secrets.SIGNAL_BUILD_CACHE_USER }}
@@ -92,21 +67,17 @@ jobs:
         SIGNAL_BUILD_CACHE_PUSH: ${{ startsWith(github.ref, 'refs/heads/8.') }}
       run: |
         if [ "${{ github.event.inputs.build_type }}" == "release" ]; then
-          ./gradlew :Signal-Android:assemblePlayProdRelease \
+          ./gradlew assemblePlayProdRelease \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            --stacktrace \
-            -x lint \
-            -x test
+            --stacktrace
         else
-          ./gradlew :Signal-Android:assemblePlayProdDebug \
+          ./gradlew assemblePlayProdDebug \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            --stacktrace \
-            -x lint \
-            -x test
+            --stacktrace
         fi
 
     - name: رفع APK
@@ -114,8 +85,8 @@ jobs:
       with:
         name: signal-${{ github.event.inputs.build_type || 'debug' }}-apk
         path: |
-          Signal-Android/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
-          app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
+          **/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
+          **/build/outputs/apk/*/debug/*.apk
         if-no-files-found: warn
 
     - name: رفع التقارير
