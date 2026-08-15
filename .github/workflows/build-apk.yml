@@ -31,7 +31,7 @@ jobs:
       with:
         submodules: true
         lfs: true
-        fetch-depth: 1  # ⚡ يجلب آخر commit بس
+        fetch-depth: 1
 
     # ⚡ خطوة 2: إعداد Java بسرعة
     - name: إعداد JDK 21
@@ -44,33 +44,32 @@ jobs:
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
-    # ⚡ خطوة 4: إعداد Gradle مع كاش أساسي (لتوفير الذاكرة)
+    # ⚡ خطوة 4: إعداد Gradle مع كاش أساسي
     - name: إعداد Gradle مع كاش أساسي
       uses: gradle/actions/setup-gradle@v6
       with:
         cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/8.') }}
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-        cache-provider: basic  # ✅ استخدام الكاش الأساسي بدل المحسن لتوفير الذاكرة
+        cache-provider: basic
         gradle-home-cache-includes: |
           caches
           notifications
           jdks
           wrapper
 
-    # ⚡ خطوة 5: تحميل التبعيات بشكل منفصل لتسريع البناء
+    # ⚡ خطوة 5: تحميل التبعيات بشكل منفصل
     - name: تحميل التبعيات
       run: |
         ./gradlew dependencies --no-daemon --parallel
 
-    # ⚡ خطوة 6: إعداد متغيرات الذاكرة المحسنة
+    # ⚡ خطوة 6: إعداد متغيرات الذاكرة
     - name: إعداد متغيرات الأداء
       run: |
         echo "GRADLE_OPTS=-Xmx4g -XX:MaxMetaspaceSize=512m -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.workers.max=2 -Dorg.gradle.daemon=false" >> $GITHUB_ENV
         echo "JAVA_OPTS=-Xmx4g -XX:+UseG1GC -XX:+OptimizeStringConcat -XX:+UseStringDeduplication" >> $GITHUB_ENV
-        echo "KOTLIN_DAEMON_JVM_ARGS=-Xmx2g -XX:MaxMetaspaceSize=256m" >> $GITHUB_ENV
 
-    # ⚡ خطوة 7: بناء APK بسرعة فائقة مع تحديد ذاكرة Kotlin مباشرة
-    - name: بناء APK بسرعة
+    # ⚡ خطوة 7: بناء APK (متغير واحد فقط)
+    - name: بناء APK
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
         SIGNAL_BUILD_CACHE_USER: ${{ secrets.SIGNAL_BUILD_CACHE_USER }}
@@ -78,21 +77,27 @@ jobs:
         SIGNAL_BUILD_CACHE_PUSH: ${{ startsWith(github.ref, 'refs/heads/8.') }}
       run: |
         if [ "${{ github.event.inputs.build_type }}" == "release" ]; then
-          ./gradlew assembleRelease \
+          # ✅ بناء متغير PlayProdRelease فقط (منتج نهائي)
+          ./gradlew :Signal-Android:assemblePlayProdRelease \
             --no-daemon \
             --parallel \
             --max-workers=2 \
             --build-cache \
             --configure-on-demand \
-            -Dkotlin.daemon.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=256m"
+            -Dkotlin.daemon.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=256m" \
+            -x lint \
+            -x test
         else
-          ./gradlew assembleDebug \
+          # ✅ بناء متغير PlayProdDebug فقط (للاختبار)
+          ./gradlew :Signal-Android:assemblePlayProdDebug \
             --no-daemon \
             --parallel \
             --max-workers=2 \
             --build-cache \
             --configure-on-demand \
-            -Dkotlin.daemon.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=256m"
+            -Dkotlin.daemon.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=256m" \
+            -x lint \
+            -x test
         fi
 
     # ⚡ خطوة 8: رفع APK
@@ -100,10 +105,10 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: signal-${{ github.event.inputs.build_type || 'debug' }}-apk
-        path: app/build/outputs/apk/${{ github.event.inputs.build_type || 'debug' }}/*.apk
+        path: app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
         if-no-files-found: error
 
-    # ⚡ خطوة 9: رفع التقارير في حالة الفشل (سريع)
+    # ⚡ خطوة 9: رفع التقارير في حالة الفشل
     - name: رفع التقارير في حالة الفشل
       if: ${{ failure() }}
       uses: actions/upload-artifact@v7
