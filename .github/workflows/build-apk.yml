@@ -44,19 +44,18 @@ jobs:
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
-    # ⚡ خطوة 4: إعداد Gradle مع كاش هائل
-    - name: إعداد Gradle مع كاش متقدم
+    # ⚡ خطوة 4: إعداد Gradle مع كاش أساسي (لتوفير الذاكرة)
+    - name: إعداد Gradle مع كاش أساسي
       uses: gradle/actions/setup-gradle@v6
       with:
         cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/8.') }}
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+        cache-provider: basic  # ✅ استخدام الكاش الأساسي بدل المحسن لتوفير الذاكرة
         gradle-home-cache-includes: |
           caches
           notifications
           jdks
           wrapper
-        # ⚡ تخزين الكاش لمدة أطول
-        gradle-home-cache-cleanup: true
 
     # ⚡ خطوة 5: تحميل التبعيات بشكل منفصل لتسريع البناء
     - name: تحميل التبعيات
@@ -66,10 +65,11 @@ jobs:
     # ⚡ خطوة 6: إعداد متغيرات الذاكرة المحسنة
     - name: إعداد متغيرات الأداء
       run: |
-        echo "GRADLE_OPTS=-Xmx4g -XX:MaxMetaspaceSize=512m -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.workers.max=4 -Dorg.gradle.daemon=false" >> $GITHUB_ENV
+        echo "GRADLE_OPTS=-Xmx4g -XX:MaxMetaspaceSize=512m -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.workers.max=2 -Dorg.gradle.daemon=false" >> $GITHUB_ENV
         echo "JAVA_OPTS=-Xmx4g -XX:+UseG1GC -XX:+OptimizeStringConcat -XX:+UseStringDeduplication" >> $GITHUB_ENV
+        echo "KOTLIN_DAEMON_JVM_ARGS=-Xmx2g -XX:MaxMetaspaceSize=256m" >> $GITHUB_ENV
 
-    # ⚡ خطوة 7: بناء APK بسرعة فائقة
+    # ⚡ خطوة 7: بناء APK بسرعة فائقة مع تحديد ذاكرة Kotlin مباشرة
     - name: بناء APK بسرعة
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
@@ -81,18 +81,18 @@ jobs:
           ./gradlew assembleRelease \
             --no-daemon \
             --parallel \
-            --max-workers=4 \
+            --max-workers=2 \
             --build-cache \
             --configure-on-demand \
-            --no-configuration-cache
+            -Dkotlin.daemon.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=256m"
         else
           ./gradlew assembleDebug \
             --no-daemon \
             --parallel \
-            --max-workers=4 \
+            --max-workers=2 \
             --build-cache \
             --configure-on-demand \
-            --no-configuration-cache
+            -Dkotlin.daemon.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=256m"
         fi
 
     # ⚡ خطوة 8: رفع APK
