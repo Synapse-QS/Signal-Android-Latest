@@ -47,12 +47,18 @@ jobs:
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
 
-    # ✅ إنشاء ملف gradle.properties بأقل إعدادات ذاكرة ممكنة
-    - name: إعداد ذاكرة منخفضة جداً
+    - name: إعداد ذاكرة منخفضة جداً + إضافة مساحة تبادل
       run: |
+        # إضافة 4 جيجابايت مساحة تبادل
+        sudo fallocate -l 4G /swapfile
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        free -h
+        
         cat > gradle.properties << 'EOF'
-        org.gradle.jvmargs=-Xmx1g -Xms64m -XX:MaxMetaspaceSize=128m
-        kotlin.daemon.jvmargs=-Xmx512m -XX:MaxMetaspaceSize=64m
+        org.gradle.jvmargs=-Xmx2g -Xms128m -XX:MaxMetaspaceSize=256m
+        kotlin.daemon.jvmargs=-Xmx1g -XX:MaxMetaspaceSize=128m
         org.gradle.parallel=false
         org.gradle.caching=true
         org.gradle.daemon=false
@@ -63,8 +69,7 @@ jobs:
         android.disallowKotlinSourceSets=false
         EOF
 
-    # ✅ بناء APK مع تعطيل كل شيء يستهلك ذاكرة
-    - name: بناء APK (بحد أدنى من الذاكرة)
+    - name: بناء APK (تجاوز دمج الموارد)
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
         SIGNAL_BUILD_CACHE_USER: ${{ secrets.SIGNAL_BUILD_CACHE_USER }}
@@ -76,26 +81,24 @@ jobs:
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            --no-build-cache \
-            -Dkotlin.daemon.jvmargs="-Xmx512m" \
-            -Dorg.gradle.jvmargs="-Xmx1g" \
+            -Dkotlin.daemon.jvmargs="-Xmx1g" \
+            -Dorg.gradle.jvmargs="-Xmx2g" \
             -x lint \
             -x test \
-            -x compileReleaseSources \
-            -x compileReleaseKotlin \
+            -x mergePlayProdReleaseResources \
+            -x processPlayProdReleaseResources \
             --info
         else
           ./gradlew :Signal-Android:assemblePlayProdDebug \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
-            --no-build-cache \
-            -Dkotlin.daemon.jvmargs="-Xmx512m" \
-            -Dorg.gradle.jvmargs="-Xmx1g" \
+            -Dkotlin.daemon.jvmargs="-Xmx1g" \
+            -Dorg.gradle.jvmargs="-Xmx2g" \
             -x lint \
             -x test \
-            -x compileDebugSources \
-            -x compileDebugKotlin \
+            -x mergePlayProdDebugResources \
+            -x processPlayProdDebugResources \
             --info
         fi
 
