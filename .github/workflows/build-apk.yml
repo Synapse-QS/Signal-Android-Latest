@@ -47,16 +47,23 @@ jobs:
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
 
-    - name: إعداد ذاكرة منخفضة جداً + إضافة مساحة تبادل
+    # ✅ إضافة مساحة تبادل بطريقة آمنة (تجنب خطأ "Text file busy")
+    - name: إضافة مساحة تبادل (swap)
       run: |
-        # إضافة 4 جيجابايت مساحة تبادل
-        sudo fallocate -l 4G /swapfile
+        # التحقق من وجود swap مسبقاً وإيقافه
+        sudo swapoff -a || true
+        # إنشاء ملف swap جديد
+        sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 status=progress
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
         sudo swapon /swapfile
+        echo "تم إضافة مساحة تبادل:"
         free -h
-        
-        cat > gradle.properties << 'EOF'
+
+    # ✅ إعداد ذاكرة منخفضة مع متغيرات إضافية
+    - name: إعداد ذاكرة منخفضة
+      run: |
+        cat >> gradle.properties << 'EOF'
         org.gradle.jvmargs=-Xmx2g -Xms128m -XX:MaxMetaspaceSize=256m
         kotlin.daemon.jvmargs=-Xmx1g -XX:MaxMetaspaceSize=128m
         org.gradle.parallel=false
@@ -69,7 +76,8 @@ jobs:
         android.disallowKotlinSourceSets=false
         EOF
 
-    - name: بناء APK (تجاوز دمج الموارد)
+    # ✅ بناء APK مع تجاوز مهام الموارد
+    - name: بناء APK
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
         SIGNAL_BUILD_CACHE_USER: ${{ secrets.SIGNAL_BUILD_CACHE_USER }}
