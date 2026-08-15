@@ -40,7 +40,7 @@ jobs:
     - name: التحقق من Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v6
 
-    # ✅ إضافة مساحة تبادل كبيرة (8 جيجابايت) لتجاوز مشاكل الذاكرة
+    # ✅ إضافة مساحة تبادل كبيرة (8 جيجابايت)
     - name: إعداد مساحة تبادل كبيرة
       run: |
         sudo swapoff -a || true
@@ -58,11 +58,11 @@ jobs:
         cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
         cache-provider: basic
 
-    # ✅ إعداد ذاكرة معقولة مع استخدام مساحة التبادل
-    - name: إعداد الذاكرة
+    # ✅ إعداد الذاكرة مع تحديد متغيرات إضافية لتقليل الاستهلاك
+    - name: إعداد الذاكرة والمتغيرات
       run: |
         cat > gradle.properties << 'EOF'
-        org.gradle.jvmargs=-Xmx3g -Xms256m -XX:MaxMetaspaceSize=512m
+        org.gradle.jvmargs=-Xmx3g -Xms256m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC
         kotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=256m
         org.gradle.parallel=false
         org.gradle.caching=true
@@ -72,15 +72,19 @@ jobs:
         android.experimental.enableScreenshotTest=true
         android.experimental.enableTestFixturesKotlinSupport=true
         android.disallowKotlinSourceSets=false
+        # تعطيل ميزات تستهلك ذاكرة
+        android.enableJetifier=false
+        android.enableUnitTestBinaryResources=false
         EOF
 
-    # ✅ بناء APK مع تجاوز المهام المستهلكة للذاكرة
+    # ✅ بناء APK مع تجاوز جميع المهام المستهلكة للذاكرة
     - name: بناء APK
       env:
         SIGNAL_BUILD_CACHE_URL: ${{ secrets.SIGNAL_BUILD_CACHE_URL }}
         SIGNAL_BUILD_CACHE_USER: ${{ secrets.SIGNAL_BUILD_CACHE_USER }}
         SIGNAL_BUILD_CACHE_PASSWORD: ${{ secrets.SIGNAL_BUILD_CACHE_PASSWORD }}
         SIGNAL_BUILD_CACHE_PUSH: ${{ startsWith(github.ref, 'refs/heads/8.') }}
+        GRADLE_OPTS: "-Xmx3g -XX:MaxMetaspaceSize=512m"
       run: |
         if [ "${{ github.event.inputs.build_type }}" == "release" ]; then
           ./gradlew :Signal-Android:assemblePlayProdRelease \
@@ -88,23 +92,49 @@ jobs:
             --max-workers=1 \
             --no-parallel \
             --stacktrace \
+            --info \
             -x lint \
             -x test \
             -x mergePlayProdReleaseResources \
             -x processPlayProdReleaseResources \
-            -x compileReleaseArtProfile
+            -x compileReleaseArtProfile \
+            -x generateReleaseArtProfile \
+            -x verifyReleaseResources \
+            -x bundleReleaseResources \
+            -x compileReleaseSources \
+            -x compileReleaseKotlin
         else
           ./gradlew :Signal-Android:assemblePlayProdDebug \
             --no-daemon \
             --max-workers=1 \
             --no-parallel \
             --stacktrace \
+            --info \
             -x lint \
             -x test \
             -x mergePlayProdDebugResources \
             -x processPlayProdDebugResources \
-            -x compileDebugArtProfile
+            -x compileDebugArtProfile \
+            -x generateDebugArtProfile \
+            -x verifyDebugResources \
+            -x bundleDebugResources \
+            -x compileDebugSources \
+            -x compileDebugKotlin
         fi
+
+    # ✅ رفع التقارير والتسجيلات لتحليل الفشل
+    - name: رفع التقارير والتسجيلات
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: build-logs
+        path: |
+          **/build/reports
+          **/build/test-results
+          **/.gradle/configuration-cache
+          **/build/outputs/logs
+          build.log
+        if-no-files-found: ignore
 
     - name: رفع APK
       uses: actions/upload-artifact@v7
@@ -114,13 +144,3 @@ jobs:
           Signal-Android/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
           app/build/outputs/apk/playProd/${{ github.event.inputs.build_type || 'debug' }}/*.apk
         if-no-files-found: warn
-
-    - name: رفع التقارير في حالة الفشل
-      if: ${{ failure() }}
-      uses: actions/upload-artifact@v7
-      with:
-        name: reports
-        path: |
-          **/build/reports
-          **/build/test-results
-        if-no-files-found: ignore
