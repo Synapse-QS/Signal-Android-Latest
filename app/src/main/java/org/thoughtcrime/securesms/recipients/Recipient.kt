@@ -568,6 +568,11 @@ class Recipient(
 
   /** A full-length display name to render for this recipient. */
   fun getDisplayName(context: Context): String {
+    if (isSelf) {
+      val username = SignalStore.account.getUsername() ?: context.getString(R.string.note_to_self)
+      return "$username (You)"
+    }
+    
     var name = getNameFromLocalData(context)
     if (Util.isEmpty(name)) {
       name = usernameValue
@@ -646,6 +651,11 @@ class Recipient(
 
   /** A shortened [getDisplayName], preferring given names. */
   fun getShortDisplayName(context: Context): String {
+    if (isSelf) {
+      val username = SignalStore.account.getUsername() ?: context.getString(R.string.note_to_self)
+      return "$username (You)"
+    }
+    
     val name = listOf(
       getGroupName(context),
       nickname.givenName,
@@ -676,7 +686,12 @@ class Recipient(
    * - A directional chevron for tappable individual profiles
    */
   fun getDisplayNameForHeadline(context: Context): CharSequence {
-    val name = if (isSelf) context.getString(R.string.note_to_self) else getDisplayName(context)
+    val name = if (isSelf) {
+      val username = SignalStore.account.getUsername() ?: context.getString(R.string.note_to_self)
+      "$username (You)"
+    } else {
+      getDisplayName(context)
+    }
 
     return buildSpannedString {
       append(name)
