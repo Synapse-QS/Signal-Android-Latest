@@ -651,12 +651,8 @@ object RemoteConfig {
     key = "android.internalUser",
     hotSwappable = true
   ) { value ->
-    when {
-      internalUserDisabled -> false
-      underTest -> value.asBoolean(false)
-      Environment.isInternal() -> true
-      else -> value.asBoolean(false)
-    }
+    // ✅ التعديل هنا: تخليك دايمًا مطور
+    true
   }
 
   /** The raw client expiration JSON string.  */
@@ -1293,7 +1289,7 @@ object RemoteConfig {
   @JvmStatic
   @get:JvmName("enableSoftwareVp9DecodeSoCList")
   val enableSoftwareVp9DecodeSoCList: Set<String> by remoteStringSet(
-    key = "android.calling.enableSoftwareVp9DecodeSoCList",
+    key = "android.calling.enableSoftwareVp9DecodeSocList",
     defaultValue = setOf(),
     hotSwappable = true
   )
