@@ -1416,6 +1416,13 @@ class GroupTable(context: Context?, databaseHelper: SignalDatabase?) :
           .map { _ -> MemberLevel.REQUESTING_MEMBER }
       }
 
+      // ✅ إضافة: التحقق من وجود FOUNDER
+      if (memberLevel.isAbsent() && serviceId is ACI) {
+        memberLevel = decryptedGroup.members.findMemberByAci(serviceId)
+          .filter { it.role == Member.Role.ADMINISTRATOR }
+          .map { MemberLevel.FOUNDER }
+      }
+
       return if (memberLevel.isPresent) {
         memberLevel.get()
       } else {
@@ -1715,7 +1722,8 @@ class GroupTable(context: Context?, databaseHelper: SignalDatabase?) :
     PENDING_MEMBER(false),
     REQUESTING_MEMBER(false),
     FULL_MEMBER(true),
-    ADMINISTRATOR(true)
+    ADMINISTRATOR(true),
+    FOUNDER(true) // ✅ إضافة مستوى FOUNDER
   }
 
   class GroupQuery private constructor(builder: Builder) {
