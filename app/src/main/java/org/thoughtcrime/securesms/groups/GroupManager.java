@@ -14,6 +14,7 @@ import org.signal.libsignal.zkgroup.groups.GroupSecretParams;
 import org.signal.libsignal.zkgroup.groups.UuidCiphertext;
 import org.signal.storageservice.storage.protos.groups.ExternalGroupCredential;
 import org.signal.storageservice.storage.protos.groups.local.DecryptedGroupJoinInfo;
+import org.thoughtcrime.securesms.database.GroupTable;
 import org.thoughtcrime.securesms.database.SignalDatabase;
 import org.thoughtcrime.securesms.database.model.GroupRecord;
 import org.thoughtcrime.securesms.groups.v2.GroupInviteLinkUrl;
@@ -139,10 +140,35 @@ public final class GroupManager {
     SignalDatabase.groups().clearGroupIfLeftAndDeleted(groupId);
   }
 
+  // ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅
+  // ✅ التعديل هنا: منع طرد المؤسس
+  // ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅
   @WorkerThread
-  public static void ejectAndBanFromGroup(@NonNull Context context, @NonNull GroupId.V2 groupId, @NonNull Recipient recipient)
+  public static void ejectAndBanFromGroup(@NonNull Context context,
+                                          @NonNull GroupId.V2 groupId,
+                                          @NonNull Recipient recipient)
       throws GroupChangeBusyException, GroupChangeFailedException, GroupInsufficientRightsException, GroupNotAMemberException, IOException
   {
+    // ✅ منع طرد المؤسس
+    GroupRecord groupRecord = SignalDatabase.groups().getGroup(groupId).orElse(null);
+    if (groupRecord != null && groupRecord.hasV2GroupProperties()) {
+      GroupTable.MemberLevel memberLevel = groupRecord.requireV2GroupProperties().memberLevel(Optional.of(recipient.getServiceId()));
+      
+      // ✅ لو العضو المطلوب طرده هو FOUNDER، امنع العملية
+      if (memberLevel == GroupTable.MemberLevel.FOUNDER) {
+        Log.w(TAG, "Cannot eject founder of group " + groupId);
+        throw new SecurityException("Cannot remove the group founder!");
+      }
+
+      // ✅ لو المستخدم الحالي مش FOUNDER، منعه من طرد FOUNDER
+      Recipient self = Recipient.self();
+      GroupTable.MemberLevel selfLevel = groupRecord.requireV2GroupProperties().memberLevel(Optional.of(self.getServiceId()));
+      if (memberLevel == GroupTable.MemberLevel.FOUNDER && selfLevel != GroupTable.MemberLevel.FOUNDER) {
+        Log.w(TAG, "Only founder can remove themselves from group " + groupId);
+        throw new SecurityException("Only the founder can remove themselves!");
+      }
+    }
+
     try (GroupManagerV2.GroupEditor edit = new GroupManagerV2(context).edit(groupId.requireV2())) {
       edit.ejectMember(recipient.requireAci(), false, true, true);
       Log.i(TAG, "Member removed from group " + groupId);

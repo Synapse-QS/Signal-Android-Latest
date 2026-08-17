@@ -10007,6 +10007,8 @@
     <string name="RecoveryKeyWarningDialog__paste_key">Paste key</string>
     <!-- Button declining to paste the recovery key -->
     <string name="RecoveryKeyWarningDialog__dont_share">Don\'t share</string>
+    <!-- ===== صلاحيات المجموعة الجديدة ===== -->
+    <string name="GroupManagement_access_level_only_founder">Only founder</string>
 
     <!-- EOF -->
 </resources>
