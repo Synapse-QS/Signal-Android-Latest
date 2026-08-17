@@ -48,6 +48,9 @@ import org.thoughtcrime.securesms.components.settings.conversation.individual.In
 import org.thoughtcrime.securesms.components.settings.conversation.individual.NoteToSelfSettingsScreen
 import org.thoughtcrime.securesms.components.settings.conversation.individual.ReleaseNotesSettingsScreen
 import org.thoughtcrime.securesms.conversation.ConversationIntents
+import org.thoughtcrime.securesms.database.GroupTable
+import org.thoughtcrime.securesms.database.SignalDatabase
+import org.thoughtcrime.securesms.database.model.GroupRecord
 import org.thoughtcrime.securesms.groups.GroupId
 import org.thoughtcrime.securesms.groups.memberlabel.MemberLabelEducationSheet
 import org.thoughtcrime.securesms.groups.ui.EndGroupDialog
@@ -68,6 +71,7 @@ import org.thoughtcrime.securesms.mediaoverview.MediaOverviewActivity
 import org.thoughtcrime.securesms.mediapreview.MediaIntentFactory
 import org.thoughtcrime.securesms.nicknames.NicknameActivity
 import org.thoughtcrime.securesms.profiles.edit.CreateProfileActivity
+import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientExporter
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.recipients.ui.about.AboutSheet
@@ -81,6 +85,7 @@ import org.thoughtcrime.securesms.util.CommunicationActions
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import org.thoughtcrime.securesms.verify.VerifyIdentityActivity
 import org.thoughtcrime.securesms.wallpaper.ChatWallpaperActivity
+import java.util.Optional
 
 private val TAG = Log.tag(ConversationSettingsFragment::class)
 
@@ -492,14 +497,34 @@ class ConversationSettingsFragment : ComposeFragment() {
       is ConversationSettingsAction.ShowEndGroupDialog -> {
         EndGroupDialog.show(requireActivity(), action.groupId, action.groupTitle)
       }
+
+      // ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅
+      // ✅ التعديل هنا: التحقق قبل عرض Block Dialog
+      // ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅
       is ConversationSettingsAction.ShowBlockDialog -> {
-        BlockUnblockDialog.showBlockFor(requireContext(), action.recipient) {
-          dispatch(
-            individual = { it.onEvent(IndividualSettingsEvent.BlockConfirmed) },
-            group = { it.onEvent(GroupSettingsEvent.BlockConfirmed) }
-          )
+        // ✅ منع عرض خيار الحظر للمؤسس
+        val groupId = action.recipient.id
+        val groupRecord = SignalDatabase.groups.getGroup(groupId).orElse(null)
+        var isFounder = false
+
+        if (groupRecord != null && groupRecord.hasV2GroupProperties()) {
+          val self = Recipient.self()
+          val selfLevel = groupRecord.requireV2GroupProperties().memberLevel(Optional.of(self.serviceId))
+          isFounder = selfLevel == GroupTable.MemberLevel.FOUNDER
+        }
+
+        if (isFounder) {
+          Toast.makeText(requireContext(), "Cannot block the group founder!", Toast.LENGTH_SHORT).show()
+        } else {
+          BlockUnblockDialog.showBlockFor(requireContext(), action.recipient) {
+            dispatch(
+              individual = { it.onEvent(IndividualSettingsEvent.BlockConfirmed) },
+              group = { it.onEvent(GroupSettingsEvent.BlockConfirmed) }
+            )
+          }
         }
       }
+
       is ConversationSettingsAction.ShowUnblockDialog -> {
         BlockUnblockDialog.showUnblockFor(requireContext(), action.recipient) {
           dispatch(
