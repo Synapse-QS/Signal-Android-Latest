@@ -668,9 +668,9 @@
     <!-- Label for official chat pill shown in the Note to Self conversation header -->
     <string name="ConversationFragment_official_chat">Official chat</string>
     <!-- Description shown in the Signal release notes conversation header -->
-    <string name="ConversationFragment_release_notes_description">The only official chat from Signal. Keep up to date with news and release notes.</string>
+    <string name="ConversationFragment_release_notes_description">The only official chat from Cipher. Keep up to date with news and release notes.</string>
     <!-- Label shown in place of the input in the Signal release notes conversation -->
-    <string name="ConversationFragment_the_only_official_chat_from_signal">The only official chat from Signal</string>
+    <string name="ConversationFragment_the_only_official_chat_from_signal">The only official chat from Cipher</string>
     <!-- Plural for group member count shown in conversation header. %1$d is the number of members -->
     <plurals name="ConversationFragment_group_member_count">
         <item quantity="one">%1$d Member</item>
@@ -6903,11 +6903,11 @@
     <string name="NotificationSettingsFragment__turn_on">Turn on</string>
 
     <!-- Text description in Signal Release channel details explaining that it is the only chat from Signal -->
-    <string name="ReleaseNotes__this_is_official_chat">This is the official and only chat from Signal</string>
+    <string name="ReleaseNotes__this_is_official_chat">This is the official and only chat from Cipher</string>
     <!-- Text description in Signal Release channel details explaining what the channel is for -->
     <string name="ReleaseNotes__keep_up_to_date">Keep up to date with news and release notes</string>
     <!-- Subtitle for the Signal Release channel explaining that it is the only chat from Signal -->
-    <string name="ReleaseNotes__official_only_chat">Official and only Signal chat</string>
+    <string name="ReleaseNotes__official_only_chat">Official and only Cipher chat</string>
 
     <!-- Donation receipts activity title -->
     <string name="DonationReceiptListFragment__all_activity">All activity</string>
