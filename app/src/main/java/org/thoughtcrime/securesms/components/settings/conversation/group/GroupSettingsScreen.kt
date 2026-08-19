@@ -6,6 +6,12 @@
 package org.thoughtcrime.securesms.components.settings.conversation.group
 
 import android.view.View
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -21,6 +27,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -125,6 +133,7 @@ fun GroupSettingsScreen(
 
     if (state.groupId.isV2 && !state.isTerminated) {
       item {
+        // ✅ تم إضافة Animation هنا
         GroupDescription(
           description = state.description,
           canEdit = state.canEditGroupAttributes,
@@ -434,6 +443,9 @@ private fun membershipSubhead(state: GroupSettingsState): String {
   }
 }
 
+// ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅
+// ✅ دالة GroupDescription المعدلة مع Animation
+// ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅
 @Composable
 private fun GroupDescription(
   description: String?,
@@ -442,31 +454,56 @@ private fun GroupDescription(
   onViewClick: () -> Unit,
   modifier: Modifier = Modifier
 ) {
+  // ✅ State للتحكم في ظهور Animation
+  val isDescriptionVisible = remember { mutableStateOf(true) }
+
   if (description.isNullOrEmpty()) {
     if (canEdit) {
-      Text(
-        text = stringResource(R.string.ManageGroupActivity_add_group_description),
+      // ✅ Animation لزر "Add group description..."
+      AnimatedVisibility(
+        visible = isDescriptionVisible.value,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut()
+      ) {
+        Text(
+          text = stringResource(R.string.ManageGroupActivity_add_group_description),
+          style = MaterialTheme.typography.bodyLarge,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          textAlign = TextAlign.Center,
+          modifier = modifier
+            .fillMaxWidth()
+            .clickable {
+              // ✅ عند الضغط، نخفي الـ Animation وننفذ الحدث
+              isDescriptionVisible.value = false
+              onEditClick()
+            }
+            .padding(horizontal = 32.dp, vertical = 8.dp)
+        )
+      }
+    }
+  } else {
+    // ✅ Animation للوصف الموجود
+    AnimatedVisibility(
+      visible = isDescriptionVisible.value,
+      enter = expandVertically() + fadeIn(),
+      exit = shrinkVertically() + fadeOut()
+    ) {
+      EmojiText(
+        text = description,
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
+        maxLines = 2,
         modifier = modifier
           .fillMaxWidth()
-          .clickable(onClick = onEditClick)
+          .clickable {
+            // ✅ عند الضغط، نخفي الـ Animation وننفذ الحدث
+            isDescriptionVisible.value = false
+            onViewClick()
+          }
           .padding(horizontal = 32.dp, vertical = 8.dp)
       )
     }
-  } else {
-    EmojiText(
-      text = description,
-      style = MaterialTheme.typography.bodyLarge,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      textAlign = TextAlign.Center,
-      maxLines = 2,
-      modifier = modifier
-        .fillMaxWidth()
-        .clickable(onClick = onViewClick)
-        .padding(horizontal = 32.dp, vertical = 8.dp)
-    )
   }
 }
 
