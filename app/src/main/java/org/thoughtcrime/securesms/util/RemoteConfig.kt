@@ -621,7 +621,7 @@ object RemoteConfig {
   @get:JvmName("pinnedChatLimit")
   val pinnedChatLimit: Int by remoteInt(
     key = "global.pinnedChatLimit",
-    defaultValue = 4,
+    defaultValue = 10,
     hotSwappable = true
   )
 
@@ -1220,7 +1220,7 @@ object RemoteConfig {
   @get:JvmName("pinLimit")
   val pinLimit: Int by remoteInt(
     key = "global.pinnedMessageLimit",
-    defaultValue = 3,
+    defaultValue = 10,
     hotSwappable = true
   )
 
