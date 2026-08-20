@@ -1,3 +1,5 @@
+
+}
 /*
  * Copyright 2025 Signal Messenger, LLC
  * SPDX-License-Identifier: AGPL-3.0-only
@@ -140,15 +142,6 @@ private fun LabsSettingsContent(
           text = "Sticker Replies",
           label = "Keep a pending quote when sending a sticker so the sticker is sent as a reply. Normally the quote is dropped when you send a sticker.",
           onCheckChanged = { onEvent(LabsSettingsEvents.ToggleStickerReplies(it)) }
-        )
-      }
-
-      item {
-        Rows.ToggleRow(
-          checked = state.muteBreakthroughNotifications,
-          text = "Improved Notification Management",
-          label = "Adds per-conversation controls to let calls and replies break through mute. New options in the sounds & notifications settings for a chat.",
-          onCheckChanged = { onEvent(LabsSettingsEvents.ToggleMuteBreakthroughNotifications(it)) }
         )
       }
 
